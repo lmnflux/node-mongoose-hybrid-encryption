@@ -4,7 +4,7 @@
  * @name encryptionWrapper
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.1.4
+ * @version 1.1.5
  *
  * @description
  * wrapper that handles top level processing of encryption and sharing related functions
@@ -471,14 +471,14 @@
     };
 
     /**
-     * @name resetAll
+     * @name resetAccessPermissions
      * @description function to reset access permissions for every shared document of given type
      * @param {Mongoose shema object} UserModel shema
      * @param {Mongoose shema object} SharedModel the shema of the model that is revoked from
      * @param {object} the decrypted document and signingkeys as well as the owner _id
      * @return {object || error} a new token payload with updated doc/sigkeys or error
      */
-    $.resetAll = function(UserModel, SharedModel, authentication) {
+    $.resetAccessPermissions = function(UserModel, SharedModel, authentication) {
       return new Promise(function(resolve, reject) {
         var promises, encryptedSharedDocuments, newDocumentKeys, newSigningKeys, newEncryptedDocumentKeys, newEncryptedSigningKeys;
 
