@@ -4,7 +4,7 @@
  * @name encryptionWrapper
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.1.5
+ * @version 1.1.6
  *
  * @description
  * wrapper that handles top level processing of encryption and sharing related functions
@@ -99,13 +99,12 @@
      * @param {Mongoose document} doc the document to be signed
      * @param {string} signingKey the user signingKey
      * @param {object} authenticatedFields for example {_id, _ct}
-     * @param {string} modelName
      * @return {promise} the generated _ac key or error  
      */
-    $.signDocument = function(doc, signingKey, authenticatedFields, modelName) {
+    $.signDocument = function(doc, signingKey, authenticatedFields) {
       return new Promise(function(resolve, reject) {
         // create the authentication cipher
-        encrypt.computeAC(doc, signingKey, authenticatedFields, modelName)
+        encrypt.computeAC(doc, signingKey, authenticatedFields)
           .then(function(authCipher) {
             doc._ac = authCipher._ac;
             // computeAC is finished, resolve signed document
@@ -136,7 +135,7 @@
             // compute the expected ac
             // with the authentication fields used for creating the actual one
             // and the document we have now
-            return encrypt.computeAC(doc, signingKey, reassembledAC.authenticatedFieldsUsed);
+            return encrypt.computeAC(doc, signingKey, reassembledAC.authenticatedFieldsUsed, reassembledAC.versionUsed);
           })
           .then(function(expectedAuthCipher) {
             // check if the expected basicAC matches the reassembled basicAC

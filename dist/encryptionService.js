@@ -4,7 +4,7 @@
  * @name encryptionService
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.1.5
+ * @version 1.1.6
  *
  * @description
  * all encryption related bottom level functions that handle data encryption
@@ -264,13 +264,19 @@
      * @param {object} the encrypted document we create an ac for
      * @param {String} decrypted signingKey
      * @param {array} all fields we want sign 
-     * @param {String} optional name of the model
+     * @param {String} optional version to be used, needed to reassemble old versions
      * @return {object || error} authCipher, object with full and basic ac or error
      * _ac: type buffer, the full ac with concated version and authenticated fields used
      * basicAC: type buffer, the ac, we use this for faster comparison
      */
-    $.computeAC = function(doc, signingKey, authenticatedFields, modelName) {
+    $.computeAC = function(doc, signingKey, authenticatedFields, version) {
       return new Promise(function(resolve, reject) {
+        // check if version field is set, if not use global
+        if (!version) {
+          version = VERSION;
+        }
+
+        // signing key needs to be converted to buffer
         var sigKey = new Buffer(signingKey, 'base64');
 
         // use the signing key to create an HMAC-sha512 hash
@@ -299,8 +305,8 @@
           reject(new Error('_ac cannot be in array of fields to authenticate'));
         }
 
-        // collectionId is the optionally provided modelName or the document modelName
-        var collectionId = modelName || doc.constructor.modelName;
+        // collectionId is the document modelName
+        var collectionId = doc.constructor.modelName;
 
         if (!collectionId) {
           reject(new Error('For authentication, each collection must have the model name as unique id.'));
@@ -311,9 +317,9 @@
         var objectToAuthenticate = _fp.pick(authenticatedFields, (doc.toObject ? doc.toObject() : doc));
         var stringToAuthenticate = stableStringify(objectToAuthenticate);
 
-        // add the collectionId, the Version, the string and fields to authenticate to the HMAC hash
+        // add the collectionId, the version, the string and fields to authenticate to the HMAC hash
         hmac.update(collectionId);
-        hmac.update(VERSION);
+        hmac.update(version);
         hmac.update(stringToAuthenticate);
         hmac.update(JSON.stringify(authenticatedFields));
 
