@@ -4,7 +4,7 @@
  * @name encryptionWrapper
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.1.0
+ * @version 1.1.2
  *
  * @description
  * wrapper that handles top level processing of encryption and sharing related functions
@@ -22,6 +22,23 @@
 
   module.exports = function() {
     var $ = {};
+
+    /**
+     * @name parseAsync
+     * @description helper function to check if given schema is promisified
+     * @param {Mongoose shema object} shema
+     * @return {Mongoose shema object} the promisified schema  
+     */
+    function parseAsync(shema) {
+      // if it is already promisified return it
+      if (shema.findOneAsync) {
+        return shema;
+      }
+      // else promisify and return it
+      Promise.promisifyAll(shema);
+      Promise.promisifyAll(shema.prototype);
+      return shema;
+    }
 
     /**
      * @name encryptDocument
@@ -195,6 +212,9 @@
         var newEncryptedDocKey;
         var publicKeys = [];
 
+        // parse the UserModel to check if it is promisified or not
+        UserModel = parseAsync(UserModel);
+
         // check if the model is shared with this user already
         if (sharedDocEncrypted.hasAccess.indexOf(shareToId) !== -1) {
           return Promise.reject(new Error('This User has access already'));
@@ -284,6 +304,9 @@
       return new Promise(function(resolve, reject) {
         var hasAccess, newEncryptedDocumentKey;
         var publicKeys = [];
+
+        // parse the UserModel to check if it is promisified or not
+        UserModel = parseAsync(UserModel);
 
         // get the document owner
         UserModel.findOneAsync({
@@ -376,6 +399,9 @@
         // we need to create a new token payload with the newly generated document and signingkey
         newAuthentication = authentication;
 
+        // parse the UserModel to check if it is promisified or not
+        UserModel = parseAsync(UserModel);
+
         // get the document owner
         UserModel.findOneAsync({
             _id: authentication._id
@@ -458,6 +484,10 @@
 
         // we need to create a new token payload with the newly generated document and signingkeys
         var newAuthentication = authentication;
+
+        // parse the UserModel and the SharedModel to check if they are promisified or not
+        UserModel = parseAsync(UserModel);
+        SharedModel = parseAsync(SharedModel);
 
         // get all shared documents
         SharedModel.findAsync({
