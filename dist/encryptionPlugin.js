@@ -4,7 +4,7 @@
  * @name encryptionPlugin
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.1.2
+ * @version 1.1.4
  *
  * @description
  * mongoose model extension, adds user specific encryption

@@ -1,6 +1,6 @@
 {
   "name": "node-mongoose-hybrid-encryption",
-  "version": "1.1.2",
+  "version": "1.1.4",
   "description": "hybrid encryption, authentication and document sharing plugin for nodeJS mongoose documents",
   "main": "index.js",
   "scripts": {
@@ -13,8 +13,13 @@
     "buffer-equal-constant-time": "^1.0.1",
     "json-stable-stringify": "^1.0.0",
     "lodash-fp": "^0.10.2",
-    "mongoose": "^4.3.4",
     "openpgp": "^1.4.1",
     "semver": "^5.1.0"
+  },
+  "peerDependencies": {
+    "mongoose": ">=4.3.4"
+  },
+  "engines": {
+    "node": ">=4.0.0"
   }
 }
