@@ -1,0 +1,20 @@
+{
+  "name": "node-mongoose-hybrid-encryption",
+  "version": "1.0.0",
+  "description": "hybrid encryption, authentication and document sharing plugin for nodeJS mongoose documents",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Markus Engel <m.engel188@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "bluebird": "^3.1.1",
+    "buffer-equal-constant-time": "^1.0.1",
+    "json-stable-stringify": "^1.0.0",
+    "lodash-fp": "^0.10.2",
+    "mongoose": "^4.3.4",
+    "openpgp": "^1.4.1",
+    "semver": "^5.1.0"
+  }
+}
