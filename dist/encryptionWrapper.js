@@ -4,7 +4,7 @@
  * @name encryptionWrapper
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.0.0
+ * @version 1.1.0
  *
  * @description
  * wrapper that handles top level processing of encryption and sharing related functions
@@ -185,47 +185,40 @@
      * @name shareDocument
      * @description function to share document permissions
      * @param {Mongoose shema object} UserModel shema
-     * @param {Mongoose shema object} SharedModel the shema of the model to be shared
      * @param {object} the decrypted document and signingkeys as well as the owner _id
      * @param {mongo objectId} shareToId the id of the user who will be granted persmission to access the shared document
      * @param {mongo obhectId} sharedDocumentId the if of the document to be shared 
      * @return {promise resolve || error} "success" or error error 
      */
-    $.shareDocument = function(UserModel, SharedModel, authentication, shareToId, sharedDocumentId) {
+    $.shareDocument = function(UserModel, authentication, shareToId, sharedDocEncrypted) {
       return new Promise(function(resolve, reject) {
-        var newEncryptedDocKey, sharedDocEncrypted;
+        var newEncryptedDocKey;
         var publicKeys = [];
 
-        // get the model we share
-        SharedModel.findOneAsync({
-            _id: sharedDocumentId
-          })
-          .then(function(sharedDoc) {
-            sharedDocEncrypted = sharedDoc;
+        // check if the model is shared with this user already
+        if (sharedDocEncrypted.hasAccess.indexOf(shareToId) !== -1) {
+          return Promise.reject(new Error('This User has access already'));
+        }
 
-            // check if the model is shared with this user already
-            if (sharedDocEncrypted.hasAccess.indexOf(shareToId) !== -1) {
-              return Promise.reject(new Error('This User has access already'));
-            } else { // else get all public keys of other users we shared this document with
-              return UserModel.findAsync({
-                  _id: {
-                    $in: sharedDocEncrypted.hasAccess
-                  }
-                })
-                .then(function(sharedToUsers) {
-                  if (sharedToUsers && !_fp.isEmpty(sharedToUsers)) {
-                    _fp.forEach(function(value, key) {
-                      publicKeys.push(value.encryption.publicKey);
-                    }, sharedToUsers);
-                  }
-                  // get the public key of the user we share our document with
-                  return UserModel.findOne({
-                    _id: shareToId
-                  }, {
-                    'encryption.publicKey': 1
-                  });
-                });
+        // if user doesnt have access get all public keys of other users we shared this document with
+        UserModel.findAsync({
+            _id: {
+              $in: sharedDocEncrypted.hasAccess
             }
+          })
+          .then(function(sharedToUsers) {
+            // check if there are user users that have access, if yes add their public keys
+            if (sharedToUsers && !_fp.isEmpty(sharedToUsers)) {
+              _fp.forEach(function(value, key) {
+                publicKeys.push(value.encryption.publicKey);
+              }, sharedToUsers);
+            }
+            // get the public key of the user we share our document with
+            return UserModel.findOne({
+              _id: shareToId
+            }, {
+              'encryption.publicKey': 1
+            });
           })
           .then(function(userTo) {
             // add the publicKey of the user we share to to the publicKeys array
@@ -282,15 +275,14 @@
      * @name revokeAccess
      * @description function to revoke document access permissions
      * @param {Mongoose shema object} UserModel shema
-     * @param {Mongoose shema object} SharedModel the shema of the model that is revoked from
      * @param {object} the decrypted document and signingkeys as well as the owner _id
      * @param {mongo objectId} revokeFromId the id of the user whose permissions will be revoked
-     * @param {mongo obhectId} revokeFromSharedId the if of the document which should be no more readable 
+     * @param {mongo obhectId} revokeFromSharedId the id of the document access should be removed from
      * @return {promise resolve || error} "success" or error 
      */
-    $.revokeAccess = function(UserModel, SharedModel, authentication, revokeFromId, revokeFromSharedDocId) {
+    $.revokeAccess = function(UserModel, authentication, revokeFromId, sharedDocEncrypted) {
       return new Promise(function(resolve, reject) {
-        var hasAccess, sharedDocEncrypted, newEncryptedDocumentKey;
+        var hasAccess, newEncryptedDocumentKey;
         var publicKeys = [];
 
         // get the document owner
@@ -303,15 +295,6 @@
             // push the public key of the document owner into the publicKeys array
             publicKeys.push(owner.encryption.publicKey);
 
-            // get the model we revoke access from
-            return SharedModel.findOne({
-              _id: revokeFromSharedDocId
-            });
-          })
-          .then(function(sharedDoc) {
-            // temp save the sharedDocument for later use
-            sharedDocEncrypted = sharedDoc;
-
             if (sharedDocEncrypted.hasAccess.indexOf(revokeFromId) === -1) {
               return Promise.reject(new Error('This User doesnt have access to this document'));
             }
@@ -323,7 +306,7 @@
               if (value.toString() !== revokeFromId.toString()) {
                 hasAccess.push(value);
               }
-            }, sharedDoc.hasAccess);
+            }, sharedDocEncrypted.hasAccess);
 
             // if no other user has access resolve our publicKeys array
             // that got our owner public key in it
@@ -380,13 +363,96 @@
 
     /**
      * @name revokeAll
-     * @description function to revoke access permissions for all user documents
+     * @description function to revoke document access permissions of all users on given document
+     * @param {Mongoose shema object} UserModel shema
+     * @param {object} the decrypted document and signingkeys as well as the owner _id
+     * @param {mongo obhectId} revokeFromSharedId the id of the document that shouldnt be shared anymore
+     * @return {object || error} a new token payload with updated doc/sigkey or error
+     */
+    $.revokeAll = function(UserModel, authentication, sharedDocEncrypted) {
+      return new Promise(function(resolve, reject) {
+        var publicKey, hasAccess, newAuthentication, sharedDocDecrypted, newEncryptedDocumentKey, newEncryptedSigningKey;
+
+        // we need to create a new token payload with the newly generated document and signingkey
+        newAuthentication = authentication;
+
+        // get the document owner
+        UserModel.findOneAsync({
+            _id: authentication._id
+          }, {
+            'encryption.publicKey': 1
+          })
+          .then(function(owner) {
+            // temp store the owners public key for later use
+            publicKey = owner.encryption.publicKey;
+
+            return sharedDocEncrypted.decrypt(authentication);
+          })
+          .then(function(sharedDocDecr) {
+            // temp save sharedDocDecrypted for later use
+            sharedDocDecrypted = sharedDocDecr;
+
+            // generate a new document key
+            return encrypt.generateDocumentKey(32);
+          })
+          .then(function(docKey) {
+            // replace the old document key with the new one in the newAuthentication
+            newAuthentication.documentAccess[sharedDocDecrypted._id].documentKey = docKey;
+
+            // generate a new signing key
+            return encrypt.generateDocumentKey(64);
+          })
+          .then(function(sigKey) {
+            // replace the old signing key with the new on in the newAuthentication
+            newAuthentication.documentAccess[sharedDocDecrypted._id].signingKey = sigKey;
+
+            // encrypt the documentKey with the owners publicKey
+            return encrypt.encryptDocumentKey(newAuthentication.documentAccess[sharedDocDecrypted._id].documentKey, publicKey);
+          })
+          .then(function(encryptedDocKey) {
+            // temp store the newEncryptedDocumentKey
+            newEncryptedDocumentKey = encryptedDocKey;
+
+            // encrypt the signing key with the new document key
+            return encrypt.encryptDocument(newAuthentication.documentAccess[sharedDocDecrypted._id].documentKey, {
+              signingKey: newAuthentication.documentAccess[sharedDocDecrypted._id].signingKey
+            });
+          })
+          .then(function(encryptedSigKey) {
+            // temp save the new encrypted signing key for later use
+            newEncryptedSigningKey = encryptedSigKey.toString('base64');
+
+            // store the ids of all users that still have access 
+            sharedDocDecrypted.hasAccess = [];
+            // overwrite the old encryptedDocument- and signingKey with the newEncryptedDocument- and signingKey
+            // access is granted only to the owner now
+            sharedDocDecrypted.documentKey = newEncryptedDocumentKey;
+            sharedDocDecrypted.signingKey = newEncryptedSigningKey;
+
+            // save the sharedDoc
+            return sharedDocDecrypted.saveAsync({
+              authentication: newAuthentication
+            });
+          })
+          .then(function() {
+            // resolve the new authentication so a new token with the changed payload can be signed
+            resolve(newAuthentication);
+          })
+          .catch(function(err) {
+            reject(err);
+          });
+      });
+    };
+
+    /**
+     * @name resetAll
+     * @description function to reset access permissions for every shared document of given type
      * @param {Mongoose shema object} UserModel shema
      * @param {Mongoose shema object} SharedModel the shema of the model that is revoked from
      * @param {object} the decrypted document and signingkeys as well as the owner _id
-     * @return {object || error} a new token payload with updated doc/sigkeys or error error
+     * @return {object || error} a new token payload with updated doc/sigkeys or error
      */
-    $.revokeAll = function(UserModel, SharedModel, authentication) {
+    $.resetAll = function(UserModel, SharedModel, authentication) {
       return new Promise(function(resolve, reject) {
         var promises, encryptedSharedDocuments, newDocumentKeys, newSigningKeys, newEncryptedDocumentKeys, newEncryptedSigningKeys;
 
@@ -497,7 +563,7 @@
             return Promise.all(promises);
           })
           .then(function(encrSharedDocs) {
-            // resolve the new authentication so a new token can be signed
+            // resolve the new authentication so a new token with the changed payload can be signed
             resolve(newAuthentication);
           })
           .catch(function(err) {
