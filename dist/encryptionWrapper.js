@@ -4,7 +4,7 @@
  * @name encryptionWrapper
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.1.6
+ * @version 1.4.0-beta.0
  *
  * @description
  * wrapper that handles top level processing of encryption and sharing related functions
@@ -15,7 +15,7 @@
   var Promise = require('bluebird');
   var mongoose = require('mongoose');
 
-  var _fp = require('lodash-fp');
+  var _ = require('lodash');
   var bufferEqual = require('buffer-equal-constant-time');
 
   var encrypt = require('./encryptionService')();
@@ -54,24 +54,24 @@
         // check if an update should be performed
         if (update || typeof update !== 'function') {
           // update all document values with provided update values
-          _fp.forEach(function(value, key) {
+          _.forEach(update, function(value, key) {
             doc[key] = value;
-          }, update);
+          });
         }
 
         var objectToEncrypt, val;
 
         // pick all keys that should be encrypted from the document
         // and temp store them in objectToEncrypt for later usage
-        objectToEncrypt = _fp.pick(encryptedFields, doc);
+        objectToEncrypt = _.pick(doc, encryptedFields);
 
         // only encrypt fields that are defined
-        _fp.forEach(function(key, value) {
+        _.forEach(objectToEncrypt, function(key, value) {
           val = objectToEncrypt[key];
           if (val === undefined) {
             delete objectToEncrypt[key];
           }
-        }, objectToEncrypt);
+        });
 
         // encrypt the specified fields
         encrypt.encryptDocument(documentKey, objectToEncrypt)
@@ -80,9 +80,9 @@
             doc._ct = encryptedDoc;
 
             // reset the encryptedFields to undefined
-            _fp.forEach(function(key, value) {
+            _.forEach(encryptedFields, function(key, value) {
               doc[key] = undefined;
-            }, encryptedFields);
+            });
 
             // encryption is finished so resolve the encrypted document
             resolve(doc);
@@ -176,15 +176,15 @@
           .then(function(decryptedDoc) {
 
             // parse the _ct field and insert the decrypted values back into the document
-            _fp.forEach(function(value, key) {
+            _.forEach(decryptedDoc, function(value, key) {
               decipheredVal = decryptedDoc[key];
 
               // if the value is a buffer write value.data
               // else just put the value
-              doc[key] = (_fp.isObject(decipheredVal) && decipheredVal.type === 'Buffer') ?
+              doc[key] = (_.isObject(decipheredVal) && decipheredVal.type === 'Buffer') ?
                 decipheredVal.data : decipheredVal;
 
-            }, decryptedDoc);
+            });
 
             // reset _ct and _ac fields to undefined when decryption is finished
             doc._ct = undefined;
@@ -227,10 +227,10 @@
           })
           .then(function(sharedToUsers) {
             // check if there are user users that have access, if yes add their public keys
-            if (sharedToUsers && !_fp.isEmpty(sharedToUsers)) {
-              _fp.forEach(function(value, key) {
+            if (sharedToUsers && !_.isEmpty(sharedToUsers)) {
+              _.forEach(sharedToUsers, function(value, key) {
                 publicKeys.push(value.encryption.publicKey);
-              }, sharedToUsers);
+              });
             }
             // get the public key of the user we share our document with
             return UserModel.findOne({
@@ -324,15 +324,15 @@
             // temp save all users that still have access to the document
             // this includes removing the user that gets his access revoked
             hasAccess = [];
-            _fp.forEach(function(value, index) {
+            _.forEach(sharedDocEncrypted.hasAccess, function(value, index) {
               if (value.toString() !== revokeFromId.toString()) {
                 hasAccess.push(value);
               }
-            }, sharedDocEncrypted.hasAccess);
+            });
 
             // if no other user has access resolve our publicKeys array
             // that got our owner public key in it
-            if (_fp.isEmpty(hasAccess)) {
+            if (_.isEmpty(hasAccess)) {
               return Promise.resolve(publicKeys);
             } else { // else get user documents that have access
               return UserModel.findAsync({
@@ -342,9 +342,9 @@
                 })
                 .then(function(users) {
                   // push all public keys that still have access to our publicKeys array
-                  _fp.forEach(function(value, key) {
+                  _.forEach(users, function(value, key) {
                     publicKeys.push(value.encryption.publicKey);
-                  }, users);
+                  });
 
                   // return all public keys that have access still
                   return Promise.resolve(publicKeys);
@@ -498,9 +498,9 @@
             promises = [];
 
             // create a new documentkey for each sharedDoc
-            _fp.forEach(function(sharedDoc, index) {
+            _.forEach(encryptedSharedDocuments, function(sharedDoc, index) {
               promises.push(encrypt.generateDocumentKey(32));
-            }, encryptedSharedDocuments);
+            });
 
             return Promise.all(promises);
           })
@@ -511,9 +511,9 @@
             promises = [];
 
             // create a new signingkey for each sharedDoc
-            _fp.forEach(function(sharedDoc, index) {
+            _.forEach(encryptedSharedDocuments, function(sharedDoc, index) {
               promises.push(encrypt.generateDocumentKey(64));
-            }, encryptedSharedDocuments);
+            });
 
             return Promise.all(promises);
           })
@@ -532,9 +532,9 @@
             promises = [];
 
             // encrypt each of the new documentkeys
-            _fp.forEach(function(sharedDoc, index) {
+            _.forEach(encryptedSharedDocuments, function(sharedDoc, index) {
               promises.push(encrypt.encryptDocumentKey(newDocumentKeys[index], owner.encryption.publicKey));
-            }, encryptedSharedDocuments);
+            });
 
             return Promise.all(promises);
           })
@@ -545,11 +545,11 @@
             promises = [];
 
             // encrypt each of the new signingkeys
-            _fp.forEach(function(sharedDoc, index) {
+            _.forEach(encryptedSharedDocuments, function(sharedDoc, index) {
               promises.push(encrypt.encryptDocument(newDocumentKeys[index], {
                 signingKey: newSigningKeys[index]
               }));
-            }, encryptedSharedDocuments);
+            });
 
             return Promise.all(promises);
           })
@@ -560,10 +560,10 @@
             promises = [];
 
             // parse through every encrypted shared document
-            _fp.forEach(function(encryptedSharedDoc, index) {
+            _.forEach(encryptedSharedDocuments, function(encryptedSharedDoc, index) {
               // decrypt every encrypted shared document
               promises.push(encryptedSharedDoc.decrypt(authentication));
-            }, encryptedSharedDocuments);
+            });
 
             // next step when decryption is finished for all shared documents
             return Promise.all(promises);
@@ -571,7 +571,7 @@
           .then(function(decrSharedDocs) {
             promises = [];
             // parse through every decrypted shared document
-            _fp.forEach(function(decrSharedDoc, index) {
+            _.forEach(decrSharedDocs, function(decrSharedDoc, index) {
               // replace old authentication with a new one for each shared document
               newAuthentication.documentAccess[decrSharedDoc._id] = {};
               newAuthentication.documentAccess[decrSharedDoc._id].documentKey = newDocumentKeys[index];
@@ -586,7 +586,7 @@
               promises.push(decrSharedDoc.saveAsync({
                 authentication: newAuthentication
               }));
-            }, decrSharedDocs);
+            });
 
             // next step when saving is finished for all shared documents
             return Promise.all(promises);

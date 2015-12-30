@@ -4,7 +4,7 @@
  * @name encryptionService
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.1.6
+ * @version 1.4.0-beta.0
  *
  * @description
  * all encryption related bottom level functions that handle data encryption
@@ -13,7 +13,7 @@
 (function() {
 
   var Promise = require('bluebird');
-  var _fp = require('lodash-fp');
+  var _ = require('lodash');
 
   var stableStringify = require('json-stable-stringify');
 
@@ -132,10 +132,10 @@
 
           publicKeys.shift();
 
-          _fp.forEach(function(key, index) {
+          _.forEach(publicKeys, function(key, index) {
             var tempKey = openpgp.key.readArmored(key);
             publicKeysProcessed.keys.push(tempKey.keys[0]);
-          }, publicKeys);
+          });
         } else { // if we only have a single key as string process only this key
           publicKeysProcessed = openpgp.key.readArmored(publicKeys);
         }
@@ -314,7 +314,7 @@
 
         // convert to regular object if possible in order to convert to the eventual mongo form which may be different than mongoose form
         // and only pick authenticatedFields that will be authenticated
-        var objectToAuthenticate = _fp.pick(authenticatedFields, (doc.toObject ? doc.toObject() : doc));
+        var objectToAuthenticate = _.pick((doc.toObject ? doc.toObject() : doc), authenticatedFields);
         var stringToAuthenticate = stableStringify(objectToAuthenticate);
 
         // add the collectionId, the version, the string and fields to authenticate to the HMAC hash

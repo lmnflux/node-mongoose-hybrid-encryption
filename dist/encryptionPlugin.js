@@ -4,7 +4,7 @@
  * @name encryptionPlugin
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.1.6
+ * @version 1.4.0-beta.0
  *
  * @description
  * mongoose model extension, adds user specific encryption
@@ -16,7 +16,7 @@
  */
 (function() {
 
-  var _fp = require('lodash-fp');
+  var _ = require('lodash');
   var semver = require('semver');
   var mongoose = require('mongoose');
   var ObjectId = mongoose.Schema.Types.ObjectId;
@@ -48,17 +48,17 @@
 
       // check if convention for excluded fields option are met
       // only excluding of top level fields is supported at this time
-      if (_fp.any(function(field) {
+      if (_.some(options.excludeFromEncryption, function(field) {
           return field.indexOf('.') !== -1;
-        }, options.excludeFromEncryption)) {
+        })) {
         throw new Error('Excluding field names containing "." is currently not supported');
       }
 
       // _id, _ct, hasAccess, documentKey and signingKey are the default excluded fields
       // union them with the optional excluded fields provided by the user
-      excludedFields = _fp.union(['_id', '_ct', 'hasAccess', 'documentKey', 'signingKey'], options.excludeFromEncryption);
+      excludedFields = _.union(['_id', '_ct', 'hasAccess', 'documentKey', 'signingKey'], options.excludeFromEncryption);
       // parse the fields we need to encrypt from the schema
-      encryptedFields = _fp.chain(schema.paths)
+      encryptedFields = _.chain(schema.paths)
         .filter(function(pathDetails) { // exclude indexed fields
           return !pathDetails._index;
         })
@@ -73,7 +73,7 @@
       // check if additional fields should be authenticated
       // if yes, union basic and the optional authenticated fields
       if (options.additionalAuthenticatedFields) {
-        authenticatedFields = _fp.union(options.additionalAuthenticatedFields, basicAuthenticatedFields);
+        authenticatedFields = _.union(options.additionalAuthenticatedFields, basicAuthenticatedFields);
       } else { // else use only basic authenticated fields
         authenticatedFields = basicAuthenticatedFields;
       }
