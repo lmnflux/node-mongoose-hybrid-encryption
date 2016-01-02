@@ -4,7 +4,7 @@
  * @name encryptionService
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.1.7
+ * @version 1.1.8-beta.0
  *
  * @description
  * all encryption related bottom level functions that handle data encryption
@@ -37,18 +37,18 @@
     var $ = {};
 
     /**
-     * @name trimAACBuffer
-     * @description trims a provided buffer to AAC_LENGTH
+     * @name trimBuffer
+     * @description trims a provided buffer to AAC_LENGTH in byte
      * when finished the old buffer is cleared so data is removed from RAM
      * @param {buffer} buffer that needs to be shortened
      * @return {buffer} trimmed buffer
      */
-    var trimAACBuffer = function(buf) {
-      var buf32 = new Buffer(AAC_LENGTH);
-      buf.copy(buf32, 0, 0, AAC_LENGTH);
+    var trimBuffer = function(buf) {
+      var buf256 = new Buffer(AAC_LENGTH);
+      buf.copy(buf256, 0, 0, AAC_LENGTH);
 
       clearBuffer(buf);
-      return buf32;
+      return buf256;
     };
 
     /**
@@ -63,6 +63,26 @@
     };
 
     /**
+     * @name deriveKey
+     * @description derives a PBKDF2 key from given passwort with a length of 32 byte
+     * @param {String} 
+     * @return {String} derived key as base64 string
+     */
+    var deriveKey = function(master) {
+      return new Promise(function(resolve, reject) {
+        master = new Buffer(master);
+
+        var hmac = crypto.createHmac('sha512', master);
+        hmac.update('enc');
+
+        var key = new Buffer(hmac.digest());
+        key = trimBuffer(key);
+
+        resolve(key.toString('base64'));
+      });
+    };
+
+    /**
      * @name generateKeyPair
      * @description generates an RSA public private key pair
      * the private key is automatically encrypted with the user pw using AES256-cbc
@@ -73,15 +93,19 @@
      */
     $.generateKeyPair = function(userIdent, password, numBits) {
       return new Promise(function(resolve, reject) {
-        // parse required options
-        var options = {
-          numBits: numBits,
-          userId: userIdent,
-          passphrase: password
-        };
+        // create a strong passphrase from given password
+        deriveKey(password)
+          .then(function(passphrase) {
+            // parse required options
+            var options = {
+              numBits: numBits,
+              userId: userIdent,
+              passphrase: passphrase
+            };
 
-        // then generate the key pair
-        openpgp.generateKeyPair(options)
+            // then generate the key pair
+            return openpgp.generateKeyPair(options);
+          })
           .then(function(keypair) {
             resolve(keypair);
           })
@@ -164,15 +188,19 @@
       return new Promise(function(resolve, reject) {
         // process the provided private key
         var privKey = openpgp.key.readArmored(privateKey).keys[0];
-        // then decrypt the private key with the users password
-        privKey.decrypt(password);
 
-        var encryptedDocKey = encryptedDocumentKey;
-        // process the encrypted document key
-        encryptedDocKey = openpgp.message.readArmored(encryptedDocKey);
+        deriveKey(password)
+          .then(function(passphrase) {
+            // then decrypt the private key with the passphrase
+            privKey.decrypt(passphrase);
 
-        // then decrypt the encrypted document key with the decrypted private key
-        openpgp.decryptMessage(privKey, encryptedDocKey)
+            var encryptedDocKey = encryptedDocumentKey;
+            // process the encrypted document key
+            encryptedDocKey = openpgp.message.readArmored(encryptedDocKey);
+
+            // then decrypt the encrypted document key with the decrypted private key
+            return openpgp.decryptMessage(privKey, encryptedDocKey);
+          })
           .then(function(decryptedDocumentKey) {
             resolve(decryptedDocumentKey);
           })
@@ -326,7 +354,7 @@
         // digest the final hmac to buffer format
         var fullAuthenticationBuffer = new Buffer(hmac.digest());
         // trim the full acBuffer to AAC_LENGTH
-        var basicAC = trimAACBuffer(fullAuthenticationBuffer);
+        var basicAC = trimBuffer(fullAuthenticationBuffer);
 
         // add version, the basicAC and all authenticated fields to the full authentication cipher
         var authenticatedFieldsBuf = new Buffer(JSON.stringify(authenticatedFields));
