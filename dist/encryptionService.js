@@ -4,7 +4,7 @@
  * @name encryptionService
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.1.8-beta.0
+ * @version 1.1.8
  *
  * @description
  * all encryption related bottom level functions that handle data encryption
