@@ -4,7 +4,7 @@
  * @name encryptionWrapper
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.2.0-beta.0
+ * @version 1.2.0-beta.1
  *
  * @description
  * wrapper that handles top level processing of encryption and sharing related functions
@@ -44,7 +44,7 @@
      * @name encryptDocument
      * @description function to ecrypt a document
      * @param {Mongoose document} doc the document to be encrypeted
-     * @param {object} the decrypted documentkey
+     * @param {object} the decrypted documentKey
      * @param {object} encryptedFields the fields to be encrypted
      * @param {document object} object of data to be updated
      * @return {document || error} the encrypted document or error  
@@ -97,7 +97,7 @@
      * @name signDocument
      * @description function to sign a document
      * @param {Mongoose document} doc the document to be signed
-     * @param {string} decrypted documentkey
+     * @param {string} decrypted documentKey
      * @param {object} authenticatedFields for example {_id, _ct}
      * @return {promise} the generated _ac key or error  
      */
@@ -158,7 +158,7 @@
      * @name decryptDocument
      * @description function to decrypt an encrypted document
      * @param {Mongoose document} doc the document to be decrypted
-     * @param {object} the decrypted documentkey
+     * @param {object} the decrypted documentKey
      * @return {document || error} the decrypted document or error  
      */
     $.decryptDocument = function(doc, documentKey) {
@@ -389,13 +389,13 @@
      * @param {Mongoose shema object} UserModel shema
      * @param {object} the decrypted documentkeys as well as the owner _id
      * @param {mongo obhectId} revokeFromSharedId the id of the document that shouldnt be shared anymore
-     * @return {object || error} a new token payload with updated doc/sigkey or error
+     * @return {object || error} a new token payload with updated docKey or error
      */
     $.revokeAll = function(UserModel, authentication, sharedDocEncrypted) {
       return new Promise(function(resolve, reject) {
         var publicKey, hasAccess, newAuthentication, sharedDocDecrypted, newEncryptedDocumentKey;
 
-        // we need to create a new token payload with the newly generated document and signingkey
+        // we need to create a new token payload for the newly generated documentkey
         newAuthentication = authentication;
 
         // parse the UserModel to check if it is promisified or not
@@ -457,14 +457,14 @@
      * @description function to reset access permissions for every shared document of given type
      * @param {Mongoose shema object} UserModel shema
      * @param {Mongoose shema object} SharedModel the shema of the model that is revoked from
-     * @param {object} the decrypted documentkeys as well as the owner _id
-     * @return {object || error} a new token payload with updated doc/sigkeys or error
+     * @param {object} the decrypted documentKeys as well as the owner _id
+     * @return {object || error} a new token payload with updated docKeys or error
      */
     $.resetAccessPermissions = function(UserModel, SharedModel, authentication) {
       return new Promise(function(resolve, reject) {
         var promises, encryptedSharedDocuments, newDocumentKeys, newEncryptedDocumentKeys;
 
-        // we need to create a new token payload with the newly generated document and signingkeys
+        // we need to create a new token payload with the newly generated documentkeys
         var newAuthentication = authentication;
 
         // parse the UserModel and the SharedModel to check if they are promisified or not

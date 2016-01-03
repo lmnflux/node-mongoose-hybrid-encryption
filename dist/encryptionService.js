@@ -4,7 +4,7 @@
  * @name encryptionService
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.2.0-beta.0
+ * @version 1.2.0-beta.1
  *
  * @description
  * all encryption related bottom level functions that handle data encryption
@@ -41,14 +41,14 @@
      * @description trims a provided buffer to AAC_LENGTH in byte
      * when finished the old buffer is cleared so data is removed from RAM
      * @param {buffer} buffer that needs to be shortened
-     * @return {buffer} trimmed buffer
+     * @return {buffer} trimmed buffer with length 32-Byte
      */
     var trimBuffer = function(buf) {
-      var buf256 = new Buffer(AAC_LENGTH);
-      buf.copy(buf256, 0, 0, AAC_LENGTH);
+      var buf32 = new Buffer(AAC_LENGTH);
+      buf.copy(buf32, 0, 0, AAC_LENGTH);
 
       clearBuffer(buf);
-      return buf256;
+      return buf32;
     };
 
     /**
@@ -65,7 +65,7 @@
     /**
      * @name deriveKey
      * @description derives a PBKDF2 key from given passwort with a length of 32 byte
-     * @param {String} 
+     * @param {String} key we derive from
      * @param {String} method, is the result an encryption or signingkey
      * @return {Buffer} derived key as buffer
      */
@@ -146,7 +146,7 @@
      * all provided publicKeys will be able to decode it
      * @param {String} the documentKey we want to encrypt
      * @param {Array || String} either an array of publicKeys or a string of 1 key
-     * @return {String || error} the encrypted document key or error
+     * @return {String || error} the encrypted documentKey or error
      */
     $.encryptDocumentKey = function(documentKey, publicKeys) {
       return new Promise(function(resolve, reject) {
@@ -179,12 +179,12 @@
 
     /**
      * @name decryptDocumentKey
-     * @description decrypts the document key with provided private key
+     * @description decrypts the document key with provided privateKey
      * the private key is decrypted using the user password here
      * @param {String} encrypted private key
      * @param {String} user password
-     * @param {String} the encrypted document key
-     * @return {String || error} the decrypted document key or error
+     * @param {String} the encrypted documentKey
+     * @return {String || error} the decrypted documentKey or error
      */
     $.decryptDocumentKey = function(privateKey, password, encryptedDocumentKey) {
       return new Promise(function(resolve, reject) {
@@ -216,7 +216,7 @@
 
     /**
      * @name encryptDocument
-     * @description encrypts the document using the document key
+     * @description encrypts the document using the documentKey
      * using cipheriv with AES256-cbc
      * @param {String} decrypted documentKey
      * @param {object} data to encrypt
@@ -294,7 +294,7 @@
      * @name computeAC
      * @description creates an authentication cipher for the provided document
      * @param {object} the encrypted document we create an ac for
-     * @param {String} decrypted documentkey
+     * @param {String} decrypted documentKey
      * @param {array} all fields we want sign 
      * @param {String} optional version to be used, needed to reassemble old versions
      * @return {object || error} authCipher, object with full and basic ac or error
@@ -335,11 +335,11 @@
           reject(new Error('For authentication, each collection must have the model name as unique id.'));
         }
 
-        // create the signingkey with documentkey as master
+        // create the signingKey with documentKey as master
         deriveKey(documentKey, 'sig')
         .then(function(signingKey){
 
-        // use the signing key to create an HMAC-sha512 hash
+        // use the signingKey to create an HMAC-sha512 hash
         var hmac = crypto.createHmac('sha512', signingKey);
 
         // convert to regular object if possible in order to convert to the eventual mongo form which may be different than mongoose form
