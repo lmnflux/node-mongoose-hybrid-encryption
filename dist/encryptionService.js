@@ -4,7 +4,7 @@
  * @name encryptionService
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.2.0
+ * @version 1.2.1-beta.0
  *
  * @description
  * all encryption related bottom level functions that handle data encryption
@@ -64,9 +64,10 @@
 
     /**
      * @name deriveKey
-     * @description derives a PBKDF2 key from given passwort with a length of 32 byte
+     * @description derives a PBKDF2 key from given passwort with a length of 64 byte
      * @param {String} key we derive from
      * @param {String} method, is the result an encryption or signingkey
+     * this param is just for a small bit of added security
      * @return {Buffer} derived key as buffer
      */
     var deriveKey = function(master, method) {

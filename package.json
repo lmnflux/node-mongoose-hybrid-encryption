@@ -1,6 +1,6 @@
 {
   "name": "node-mongoose-hybrid-encryption",
-  "version": "1.2.0",
+  "version": "1.2.1-beta.0",
   "description": "hybrid encryption, authentication and document sharing plugin for nodeJS mongoose documents",
   "main": "index.js",
   "scripts": {
