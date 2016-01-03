@@ -4,7 +4,7 @@
  * @name encryptionService
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.1.8
+ * @version 1.2.0-beta.0
  *
  * @description
  * all encryption related bottom level functions that handle data encryption
@@ -66,19 +66,19 @@
      * @name deriveKey
      * @description derives a PBKDF2 key from given passwort with a length of 32 byte
      * @param {String} 
-     * @return {String} derived key as base64 string
+     * @param {String} method, is the result an encryption or signingkey
+     * @return {Buffer} derived key as buffer
      */
-    var deriveKey = function(master) {
+    var deriveKey = function(master, method) {
       return new Promise(function(resolve, reject) {
         master = new Buffer(master);
 
         var hmac = crypto.createHmac('sha512', master);
-        hmac.update('enc');
+        hmac.update(method);
 
         var key = new Buffer(hmac.digest());
-        key = trimBuffer(key);
 
-        resolve(key.toString('base64'));
+        resolve(key);
       });
     };
 
@@ -94,8 +94,10 @@
     $.generateKeyPair = function(userIdent, password, numBits) {
       return new Promise(function(resolve, reject) {
         // create a strong passphrase from given password
-        deriveKey(password)
+        deriveKey(password, 'enc')
           .then(function(passphrase) {
+            // trim to correct size
+            passphrase = trimBuffer(passphrase);
             // parse required options
             var options = {
               numBits: numBits,
@@ -189,8 +191,10 @@
         // process the provided private key
         var privKey = openpgp.key.readArmored(privateKey).keys[0];
 
-        deriveKey(password)
+        deriveKey(password, 'enc')
           .then(function(passphrase) {
+            // trim to correct size
+            passphrase = trimBuffer(passphrase);
             // then decrypt the private key with the passphrase
             privKey.decrypt(passphrase);
 
@@ -290,25 +294,19 @@
      * @name computeAC
      * @description creates an authentication cipher for the provided document
      * @param {object} the encrypted document we create an ac for
-     * @param {String} decrypted signingKey
+     * @param {String} decrypted documentkey
      * @param {array} all fields we want sign 
      * @param {String} optional version to be used, needed to reassemble old versions
      * @return {object || error} authCipher, object with full and basic ac or error
      * _ac: type buffer, the full ac with concated version and authenticated fields used
      * basicAC: type buffer, the ac, we use this for faster comparison
      */
-    $.computeAC = function(doc, signingKey, authenticatedFields, version) {
+    $.computeAC = function(doc, documentKey, authenticatedFields, version) {
       return new Promise(function(resolve, reject) {
         // check if version field is set, if not use global
         if (!version) {
           version = VERSION;
         }
-
-        // signing key needs to be converted to buffer
-        var sigKey = new Buffer(signingKey, 'base64');
-
-        // use the signing key to create an HMAC-sha512 hash
-        var hmac = crypto.createHmac('sha512', signingKey);
 
         // check if fields to authenticate match the convention
         if (!(authenticatedFields instanceof Array)) {
@@ -326,9 +324,6 @@
         if (authenticatedFields.indexOf('documentKey') === -1) {
           reject(new Error('documentKey must be in array of fields to authenticate'));
         }
-        if (authenticatedFields.indexOf('signingKey') === -1) {
-          reject(new Error('signingKey must be in array of fields to authenticate'));
-        }
         if (authenticatedFields.indexOf('_ac') !== -1) {
           reject(new Error('_ac cannot be in array of fields to authenticate'));
         }
@@ -339,6 +334,13 @@
         if (!collectionId) {
           reject(new Error('For authentication, each collection must have the model name as unique id.'));
         }
+
+        // create the signingkey with documentkey as master
+        deriveKey(documentKey, 'sig')
+        .then(function(signingKey){
+
+        // use the signing key to create an HMAC-sha512 hash
+        var hmac = crypto.createHmac('sha512', signingKey);
 
         // convert to regular object if possible in order to convert to the eventual mongo form which may be different than mongoose form
         // and only pick authenticatedFields that will be authenticated
@@ -366,6 +368,7 @@
         };
 
         resolve(authCipher);
+        });
       });
     };
 

@@ -4,7 +4,7 @@
  * @name encryptionWrapper
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.1.8
+ * @version 1.2.0-beta.0
  *
  * @description
  * wrapper that handles top level processing of encryption and sharing related functions
@@ -44,7 +44,7 @@
      * @name encryptDocument
      * @description function to ecrypt a document
      * @param {Mongoose document} doc the document to be encrypeted
-     * @param {object} the decrypted document and signingkey
+     * @param {object} the decrypted documentkey
      * @param {object} encryptedFields the fields to be encrypted
      * @param {document object} object of data to be updated
      * @return {document || error} the encrypted document or error  
@@ -97,14 +97,14 @@
      * @name signDocument
      * @description function to sign a document
      * @param {Mongoose document} doc the document to be signed
-     * @param {string} signingKey the user signingKey
+     * @param {string} decrypted documentkey
      * @param {object} authenticatedFields for example {_id, _ct}
      * @return {promise} the generated _ac key or error  
      */
-    $.signDocument = function(doc, signingKey, authenticatedFields) {
+    $.signDocument = function(doc, documentKey, authenticatedFields) {
       return new Promise(function(resolve, reject) {
         // create the authentication cipher
-        encrypt.computeAC(doc, signingKey, authenticatedFields)
+        encrypt.computeAC(doc, documentKey, authenticatedFields)
           .then(function(authCipher) {
             doc._ac = authCipher._ac;
             // computeAC is finished, resolve signed document
@@ -120,10 +120,10 @@
      * @name verifyDocument
      * @description function to verify the document singning
      * @param {Mongoose document} doc the document to be verified
-     * @param {object} the decrypted document and signingkey
+     * @param {String} the decrypted documentkey
      * @return {true || error} true or error  
      */
-    $.verifyDocument = function(doc, signingKey) {
+    $.verifyDocument = function(doc, documentKey) {
       return new Promise(function(resolve, reject) {
         var reassembledAuthCipher;
 
@@ -135,7 +135,7 @@
             // compute the expected ac
             // with the authentication fields used for creating the actual one
             // and the document we have now
-            return encrypt.computeAC(doc, signingKey, reassembledAC.authenticatedFieldsUsed, reassembledAC.versionUsed);
+            return encrypt.computeAC(doc, documentKey, reassembledAC.authenticatedFieldsUsed, reassembledAC.versionUsed);
           })
           .then(function(expectedAuthCipher) {
             // check if the expected basicAC matches the reassembled basicAC
@@ -158,7 +158,7 @@
      * @name decryptDocument
      * @description function to decrypt an encrypted document
      * @param {Mongoose document} doc the document to be decrypted
-     * @param {object} the decrypted document and signingkey
+     * @param {object} the decrypted documentkey
      * @return {document || error} the decrypted document or error  
      */
     $.decryptDocument = function(doc, documentKey) {
@@ -201,7 +201,7 @@
      * @name shareDocument
      * @description function to share document permissions
      * @param {Mongoose shema object} UserModel shema
-     * @param {object} the decrypted document and signingkeys as well as the owner _id
+     * @param {object} the decrypted documentkeys as well as the owner _id
      * @param {mongo objectId} shareToId the id of the user who will be granted persmission to access the shared document
      * @param {mongo obhectId} sharedDocumentId the if of the document to be shared 
      * @return {promise resolve || error} "success" or error error 
@@ -255,7 +255,7 @@
             publicKeys.push(owner.encryption.publicKey);
 
             // encrypt the documentKey with all public keys that have access
-            return encrypt.encryptDocumentKey(authentication.documentAccess[sharedDocEncrypted._id].documentKey, publicKeys);
+            return encrypt.encryptDocumentKey(authentication.documentAccess[sharedDocEncrypted._id], publicKeys);
           })
           .then(function(encryptedDocumentKey) {
             // temp store the newEncryptedDocumentKey for later use
@@ -294,7 +294,7 @@
      * @name revokeAccess
      * @description function to revoke document access permissions
      * @param {Mongoose shema object} UserModel shema
-     * @param {object} the decrypted document and signingkeys as well as the owner _id
+     * @param {object} the decrypted documentkeys as well as the owner _id
      * @param {mongo objectId} revokeFromId the id of the user whose permissions will be revoked
      * @param {mongo obhectId} revokeFromSharedId the id of the document access should be removed from
      * @return {promise resolve || error} "success" or error 
@@ -353,7 +353,7 @@
           })
           .then(function(pKeys) {
             // encrypt the documentKey with all users that still have access
-            return encrypt.encryptDocumentKey(authentication.documentAccess[sharedDocEncrypted._id].documentKey, pKeys);
+            return encrypt.encryptDocumentKey(authentication.documentAccess[sharedDocEncrypted._id], pKeys);
           })
           .then(function(encryptedDocKey) {
             // temp store the newEncryptedDocumentKey
@@ -387,13 +387,13 @@
      * @name revokeAll
      * @description function to revoke document access permissions of all users on given document
      * @param {Mongoose shema object} UserModel shema
-     * @param {object} the decrypted document and signingkeys as well as the owner _id
+     * @param {object} the decrypted documentkeys as well as the owner _id
      * @param {mongo obhectId} revokeFromSharedId the id of the document that shouldnt be shared anymore
      * @return {object || error} a new token payload with updated doc/sigkey or error
      */
     $.revokeAll = function(UserModel, authentication, sharedDocEncrypted) {
       return new Promise(function(resolve, reject) {
-        var publicKey, hasAccess, newAuthentication, sharedDocDecrypted, newEncryptedDocumentKey, newEncryptedSigningKey;
+        var publicKey, hasAccess, newAuthentication, sharedDocDecrypted, newEncryptedDocumentKey;
 
         // we need to create a new token payload with the newly generated document and signingkey
         newAuthentication = authentication;
@@ -422,37 +422,20 @@
           })
           .then(function(docKey) {
             // replace the old document key with the new one in the newAuthentication
-            newAuthentication.documentAccess[sharedDocDecrypted._id].documentKey = docKey;
-
-            // generate a new signing key
-            return encrypt.generateDocumentKey(64);
-          })
-          .then(function(sigKey) {
-            // replace the old signing key with the new on in the newAuthentication
-            newAuthentication.documentAccess[sharedDocDecrypted._id].signingKey = sigKey;
+            newAuthentication.documentAccess[sharedDocDecrypted._id] = docKey;
 
             // encrypt the documentKey with the owners publicKey
-            return encrypt.encryptDocumentKey(newAuthentication.documentAccess[sharedDocDecrypted._id].documentKey, publicKey);
+            return encrypt.encryptDocumentKey(newAuthentication.documentAccess[sharedDocDecrypted._id], publicKey);
           })
           .then(function(encryptedDocKey) {
             // temp store the newEncryptedDocumentKey
             newEncryptedDocumentKey = encryptedDocKey;
 
-            // encrypt the signing key with the new document key
-            return encrypt.encryptDocument(newAuthentication.documentAccess[sharedDocDecrypted._id].documentKey, {
-              signingKey: newAuthentication.documentAccess[sharedDocDecrypted._id].signingKey
-            });
-          })
-          .then(function(encryptedSigKey) {
-            // temp save the new encrypted signing key for later use
-            newEncryptedSigningKey = encryptedSigKey.toString('base64');
-
             // store the ids of all users that still have access 
             sharedDocDecrypted.hasAccess = [];
-            // overwrite the old encryptedDocument- and signingKey with the newEncryptedDocument- and signingKey
+            // overwrite the old encryptedDocumentKey with the newEncryptedDocumentKey
             // access is granted only to the owner now
             sharedDocDecrypted.documentKey = newEncryptedDocumentKey;
-            sharedDocDecrypted.signingKey = newEncryptedSigningKey;
 
             // save the sharedDoc
             return sharedDocDecrypted.saveAsync({
@@ -474,12 +457,12 @@
      * @description function to reset access permissions for every shared document of given type
      * @param {Mongoose shema object} UserModel shema
      * @param {Mongoose shema object} SharedModel the shema of the model that is revoked from
-     * @param {object} the decrypted document and signingkeys as well as the owner _id
+     * @param {object} the decrypted documentkeys as well as the owner _id
      * @return {object || error} a new token payload with updated doc/sigkeys or error
      */
     $.resetAccessPermissions = function(UserModel, SharedModel, authentication) {
       return new Promise(function(resolve, reject) {
-        var promises, encryptedSharedDocuments, newDocumentKeys, newSigningKeys, newEncryptedDocumentKeys, newEncryptedSigningKeys;
+        var promises, encryptedSharedDocuments, newDocumentKeys, newEncryptedDocumentKeys;
 
         // we need to create a new token payload with the newly generated document and signingkeys
         var newAuthentication = authentication;
@@ -508,19 +491,6 @@
             // temp save new docKeys for later use
             newDocumentKeys = docKeys;
 
-            promises = [];
-
-            // create a new signingkey for each sharedDoc
-            _.forEach(encryptedSharedDocuments, function(sharedDoc, index) {
-              promises.push(encrypt.generateDocumentKey(64));
-            });
-
-            return Promise.all(promises);
-          })
-          .then(function(sigKeys) {
-            // temp save new signingKeys for later use
-            newSigningKeys = sigKeys;
-
             // get the publicKey of the owner
             return UserModel.findOneAsync({
               _id: authentication._id
@@ -544,21 +514,6 @@
 
             promises = [];
 
-            // encrypt each of the new signingkeys
-            _.forEach(encryptedSharedDocuments, function(sharedDoc, index) {
-              promises.push(encrypt.encryptDocument(newDocumentKeys[index], {
-                signingKey: newSigningKeys[index]
-              }));
-            });
-
-            return Promise.all(promises);
-          })
-          .then(function(sigKeysEnc) {
-            // temp save new sigKeysEnc
-            newEncryptedSigningKeys = sigKeysEnc;
-
-            promises = [];
-
             // parse through every encrypted shared document
             _.forEach(encryptedSharedDocuments, function(encryptedSharedDoc, index) {
               // decrypt every encrypted shared document
@@ -573,15 +528,12 @@
             // parse through every decrypted shared document
             _.forEach(decrSharedDocs, function(decrSharedDoc, index) {
               // replace old authentication with a new one for each shared document
-              newAuthentication.documentAccess[decrSharedDoc._id] = {};
-              newAuthentication.documentAccess[decrSharedDoc._id].documentKey = newDocumentKeys[index];
-              newAuthentication.documentAccess[decrSharedDoc._id].signingKey = newSigningKeys[index];
+              newAuthentication.documentAccess[decrSharedDoc._id] = newDocumentKeys[index];
               // reset hasAccess to empty array
               decrSharedDoc.hasAccess = [];
               // overwrite the old encryptedDocumentKey with the newEncryptedDocumentKey 
               // only the user has access to the shared documents now
               decrSharedDoc.documentKey = newEncryptedDocumentKeys[index];
-              decrSharedDoc.signingKey = newEncryptedSigningKeys[index].toString('base64');
               // save all shared documents
               promises.push(decrSharedDoc.saveAsync({
                 authentication: newAuthentication

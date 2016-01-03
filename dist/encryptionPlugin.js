@@ -4,7 +4,7 @@
  * @name encryptionPlugin
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.1.8
+ * @version 1.2.0-beta.0
  *
  * @description
  * mongoose model extension, adds user specific encryption
@@ -28,7 +28,7 @@
     var excludedFields, encryptedFields, authenticatedFields;
     // specifies default fields that must always be authenticated
     // these fields should never be changed
-    var basicAuthenticatedFields = ['_id', '_ct', 'hasAccess', 'documentKey', 'signingKey'];
+    var basicAuthenticatedFields = ['_id', '_ct', 'hasAccess', 'documentKey'];
 
     /**
      * @name activate
@@ -54,9 +54,9 @@
         throw new Error('Excluding field names containing "." is currently not supported');
       }
 
-      // _id, _ct, hasAccess, documentKey and signingKey are the default excluded fields
+      // _id, _ct, hasAccess and documentKey are the default excluded fields
       // union them with the optional excluded fields provided by the user
-      excludedFields = _.union(['_id', '_ct', 'hasAccess', 'documentKey', 'signingKey'], options.excludeFromEncryption);
+      excludedFields = _.union(['_id', '_ct', 'hasAccess', 'documentKey'], options.excludeFromEncryption);
       // parse the fields we need to encrypt from the schema
       encryptedFields = _.chain(schema.paths)
         .filter(function(pathDetails) { // exclude indexed fields
@@ -113,32 +113,23 @@
           }
         });
       }
-
-      // check if the schema has a signingKey field, if not add it
-      if (!schema.paths.signingKey) {
-        schema.add({
-          signingKey: {
-            type: String
-          }
-        });
-      }
     }
     activate();
 
     /**
      * @name encrypt
      * @description adds an encrypt function to the schema
-     * @param {object} authentication, the decrypted document and signingkeys
+     * @param {object} authentication, the decrypted documentkeys
      * @param {object} optional update key value object for fields that should be updated on save
      * @return {document || error} the encrypted document or error  
      */
     schema.methods.encrypt = function(authentication, update) {
       var doc = this;
-      return encryptionWrapper.encryptDocument(doc, authentication.documentAccess[doc._id].documentKey, encryptedFields, update)
+      return encryptionWrapper.encryptDocument(doc, authentication.documentAccess[doc._id], encryptedFields, update)
         .then(function(encryptedDoc) {
           doc = encryptedDoc;
 
-          return encryptionWrapper.signDocument(doc, authentication.documentAccess[doc._id].signingKey, authenticatedFields);
+          return encryptionWrapper.signDocument(doc, authentication.documentAccess[doc._id], authenticatedFields);
         });
     };
 
@@ -146,15 +137,15 @@
      * @name decrypt
      * @description adds a decrypt function to the schema,
      * the document is verified before the encryption
-     * @param {object} authentication, the decrypted document and signingkeys
+     * @param {object} authentication, the decrypted documentkeys
      * @return {document || error} the decrypted document or error  
      */
     schema.methods.decrypt = function(authentication) {
       var doc = this;
 
-      return encryptionWrapper.verifyDocument(doc, authentication.documentAccess[doc._id].signingKey)
+      return encryptionWrapper.verifyDocument(doc, authentication.documentAccess[doc._id])
         .then(function() {
-          return encryptionWrapper.decryptDocument(doc, authentication.documentAccess[doc._id].documentKey);
+          return encryptionWrapper.decryptDocument(doc, authentication.documentAccess[doc._id]);
         });
     };
 
@@ -163,7 +154,7 @@
      * @description the document needs to be encrypted automatically pre save
      * @params {function} next, can be called to save the document when pre is finished
      * default mongoose param
-     * @params {options} decrypted document and signingkey and an optional field update object
+     * @params {options} decrypted documentkeys and an optional field update object
      * @return {document || error} the encrypted document or error  
      */
     schema.pre('save', function(next, options) {
@@ -186,7 +177,7 @@
      * @description adds a share function to the schema
      * this function adds acces to a given user on executing document
      * @param {Mongoose shema object} UserModel shema
-     * @param {object} the decrypted document and signingkeys as well as the owner _id
+     * @param {object} the decrypted documentkeys as well as the owner _id
      * @param {mongo objectId} shareToId the id of the user who will be granted persmission to access the shared document
      * @return {promise resolve} "success" or error 
      */
@@ -201,7 +192,7 @@
      * @description adds a revokeAccess function to the schema
      * this function removes access from a given user on executing document
      * @param {Mongoose shema object} UserModel shema
-     * @param {object} the decrypted document and signingkeys as well as the owner _id
+     * @param {object} the decrypted documentkeys as well as the owner _id
      * @param {mongo objectId} revokeFromId the id of the user whose permissions will be revoked
      * @return {promise resolve} "success" or error 
      */
@@ -216,7 +207,7 @@
      * @description adds a revokeAll function to the schema
      * this function removes access of all users on executing document
      * @param {Mongoose shema object} UserModel shema
-     * @param {object} the decrypted document and signingkeys as well as the owner _id
+     * @param {object} the decrypted documentkeys as well as the owner _id
      * @return {object || error} a new token payload with updated doc/sigkey or error
      */
     schema.methods.revokeAll = function(UserModel, authentication) {
