@@ -4,7 +4,7 @@
  * @name encryptionWrapper
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.2.0-beta.1
+ * @version 1.2.0
  *
  * @description
  * wrapper that handles top level processing of encryption and sharing related functions
