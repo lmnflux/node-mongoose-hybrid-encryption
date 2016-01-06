@@ -4,7 +4,7 @@
  * @name encryptionWrapper
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.2.0
+ * @version 1.2.1-beta.1
  *
  * @description
  * wrapper that handles top level processing of encryption and sharing related functions
@@ -44,7 +44,7 @@
      * @name encryptDocument
      * @description function to ecrypt a document
      * @param {Mongoose document} doc the document to be encrypeted
-     * @param {object} the decrypted documentKey
+     * @param {String} the decrypted documentKey
      * @param {object} encryptedFields the fields to be encrypted
      * @param {document object} object of data to be updated
      * @return {document || error} the encrypted document or error  
@@ -97,7 +97,7 @@
      * @name signDocument
      * @description function to sign a document
      * @param {Mongoose document} doc the document to be signed
-     * @param {string} decrypted documentKey
+     * @param {String} decrypted documentKey
      * @param {object} authenticatedFields for example {_id, _ct}
      * @return {promise} the generated _ac key or error  
      */
@@ -158,7 +158,7 @@
      * @name decryptDocument
      * @description function to decrypt an encrypted document
      * @param {Mongoose document} doc the document to be decrypted
-     * @param {object} the decrypted documentKey
+     * @param {String} the decrypted documentKey
      * @return {document || error} the decrypted document or error  
      */
     $.decryptDocument = function(doc, documentKey) {
@@ -200,10 +200,10 @@
     /**
      * @name shareDocument
      * @description function to share document permissions
-     * @param {Mongoose shema object} UserModel shema
+     * @param {Mongoose shema} UserModel shema
      * @param {object} the decrypted documentkeys as well as the owner _id
-     * @param {mongo objectId} shareToId the id of the user who will be granted persmission to access the shared document
-     * @param {mongo obhectId} sharedDocumentId the if of the document to be shared 
+     * @param {Mongoose objectId} shareToId the id of the user who will be granted persmission to access the shared document
+     * @param {Mongoose document} sharedDocumentEncrypted the document to be shared
      * @return {promise resolve || error} "success" or error error 
      */
     $.shareDocument = function(UserModel, authentication, shareToId, sharedDocEncrypted) {
@@ -293,10 +293,10 @@
     /**
      * @name revokeAccess
      * @description function to revoke document access permissions
-     * @param {Mongoose shema object} UserModel shema
+     * @param {Mongoose shema} UserModel shema
      * @param {object} the decrypted documentkeys as well as the owner _id
-     * @param {mongo objectId} revokeFromId the id of the user whose permissions will be revoked
-     * @param {mongo obhectId} revokeFromSharedId the id of the document access should be removed from
+     * @param {Mongoose objectId} revokeFromId the id of the user whose permissions will be revoked
+     * @param {Mongoose document} sharedDocEncrypted the document access should be removed from
      * @return {promise resolve || error} "success" or error 
      */
     $.revokeAccess = function(UserModel, authentication, revokeFromId, sharedDocEncrypted) {
@@ -386,9 +386,9 @@
     /**
      * @name revokeAll
      * @description function to revoke document access permissions of all users on given document
-     * @param {Mongoose shema object} UserModel shema
+     * @param {Mongoose shema} UserModel shema
      * @param {object} the decrypted documentkeys as well as the owner _id
-     * @param {mongo obhectId} revokeFromSharedId the id of the document that shouldnt be shared anymore
+     * @param {Mongoose document} revokeFromSharedId the id of the document that shouldnt be shared anymore
      * @return {object || error} a new token payload with updated docKey or error
      */
     $.revokeAll = function(UserModel, authentication, sharedDocEncrypted) {
@@ -443,6 +443,10 @@
             });
           })
           .then(function() {
+            // check if session management is allowed, if remove key from new session payload
+            if (!sharedDocEncrypted.allowSession) {
+              delete newAuthentication.documentAccess[sharedDocEncrypted._id];
+            }
             // resolve the new authentication so a new token with the changed payload can be signed
             resolve(newAuthentication);
           })
@@ -455,8 +459,8 @@
     /**
      * @name resetAccessPermissions
      * @description function to reset access permissions for every shared document of given type
-     * @param {Mongoose shema object} UserModel shema
-     * @param {Mongoose shema object} SharedModel the shema of the model that is revoked from
+     * @param {Mongoose shema} UserModel shema
+     * @param {Mongoose shema} SharedModel the shema of the model that is revoked from
      * @param {object} the decrypted documentKeys as well as the owner _id
      * @return {object || error} a new token payload with updated docKeys or error
      */
@@ -544,6 +548,13 @@
             return Promise.all(promises);
           })
           .then(function(encrSharedDocs) {
+            // check if session management is allowed
+            _.forEach(encrSharedDocs, function(encrSharedDoc, index) {
+              // if not remove the key from new session payload
+              if (!encrSharedDoc.allowSession) {
+                delete newAuthentication.documentAccess[encrSharedDoc._id];
+              }
+            });
             // resolve the new authentication so a new token with the changed payload can be signed
             resolve(newAuthentication);
           })

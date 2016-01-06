@@ -4,7 +4,7 @@
  * @name encryptionPlugin
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.2.0
+ * @version 1.2.1-beta.1
  *
  * @description
  * mongoose model extension, adds user specific encryption
@@ -28,7 +28,7 @@
     var excludedFields, encryptedFields, authenticatedFields;
     // specifies default fields that must always be authenticated
     // these fields should never be changed
-    var basicAuthenticatedFields = ['_id', '_ct', 'hasAccess', 'documentKey'];
+    var basicAuthenticatedFields = ['_id', '_ct', 'hasAccess', 'documentKey', 'permitSession'];
 
     /**
      * @name activate
@@ -56,7 +56,7 @@
 
       // _id, _ct, hasAccess and documentKey are the default excluded fields
       // union them with the optional excluded fields provided by the user
-      excludedFields = _.union(['_id', '_ct', 'hasAccess', 'documentKey'], options.excludeFromEncryption);
+      excludedFields = _.union(['_id', '_ct', 'hasAccess', 'documentKey', 'permitSession'], options.excludeFromEncryption);
       // parse the fields we need to encrypt from the schema
       encryptedFields = _.chain(schema.paths)
         .filter(function(pathDetails) { // exclude indexed fields
@@ -110,6 +110,16 @@
         schema.add({
           documentKey: {
             type: String
+          }
+        });
+      }
+
+      // check if the schema has a allowSession field, if not add it
+      if (!schema.paths.allowSession) {
+        schema.add({
+          allowSession: {
+            type: Boolean,
+            default: true
           }
         });
       }
