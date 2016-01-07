@@ -4,7 +4,7 @@
  * @name encryptionWrapper
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.2.1-beta.2
+ * @version 1.2.1-beta.3
  *
  * @description
  * wrapper that handles top level processing of encryption and sharing related functions
@@ -301,7 +301,7 @@
      */
     $.revokeAccess = function(UserModel, authentication, revokeFromId, sharedDocEncrypted) {
       return new Promise(function(resolve, reject) {
-        var hasAccess, newEncryptedDocumentKey, newAuthentication;
+        var hasAccess, sharedDocumentDec, newEncryptedDocumentKey, newAuthentication;
         var publicKeys = [];
 
         // we need to create a new token payload for the newly generated documentkey
@@ -357,6 +357,14 @@
           .then(function(pKeys) {
             // temp save the resolved pKeys for later use
             publicKeys = pKeys;
+
+            // decrypt the sharedDocument
+            return sharedDocEncrypted.decrypt(authentication);
+          })
+          .then(function(sharedDocDec) {
+            // temp save sharedDocumentDec for later use
+            sharedDocumentDec = sharedDocDec;
+
             // generate a new document key
             return encrypt.generateDocumentKey(32);
           })
@@ -370,11 +378,6 @@
           .then(function(encryptedDocKey) {
             // temp store the newEncryptedDocumentKey
             newEncryptedDocumentKey = encryptedDocKey;
-
-            // decrypt the sharedDocument
-            return sharedDocEncrypted.decrypt(authentication);
-          })
-          .then(function(sharedDocumentDec) {
             // store the ids of all users that still have access 
             sharedDocumentDec.hasAccess = hasAccess;
             // overwrite the old encryptedDocumentKey with the newEncryptedDocumentKey 
@@ -383,7 +386,7 @@
 
             // save the sharedDoc
             return sharedDocumentDec.saveAsync({
-              authentication: authentication
+              authentication: newAuthentication
             });
           })
           .then(function() {
