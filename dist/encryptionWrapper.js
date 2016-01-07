@@ -4,7 +4,7 @@
  * @name encryptionWrapper
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.2.1-beta.1
+ * @version 1.2.1-beta.2
  *
  * @description
  * wrapper that handles top level processing of encryption and sharing related functions
@@ -226,7 +226,7 @@
             }
           })
           .then(function(sharedToUsers) {
-            // check if there are user users that have access, if yes add their public keys
+            // check if there are users that have access, if yes add their public keys
             if (sharedToUsers && !_.isEmpty(sharedToUsers)) {
               _.forEach(sharedToUsers, function(value, key) {
                 publicKeys.push(value.encryption.publicKey);
@@ -301,8 +301,11 @@
      */
     $.revokeAccess = function(UserModel, authentication, revokeFromId, sharedDocEncrypted) {
       return new Promise(function(resolve, reject) {
-        var hasAccess, newEncryptedDocumentKey;
+        var hasAccess, newEncryptedDocumentKey, newAuthentication;
         var publicKeys = [];
+
+        // we need to create a new token payload for the newly generated documentkey
+        newAuthentication = authentication;
 
         // parse the UserModel to check if it is promisified or not
         UserModel = parseAsync(UserModel);
@@ -352,8 +355,17 @@
             }
           })
           .then(function(pKeys) {
+            // temp save the resolved pKeys for later use
+            publicKeys = pKeys;
+            // generate a new document key
+            return encrypt.generateDocumentKey(32);
+          })
+          .then(function(documentKey) {
+            // replace the old document key with the new one in the newAuthentication
+            newAuthentication.documentAccess[sharedDocEncrypted._id] = documentKey;
+
             // encrypt the documentKey with all users that still have access
-            return encrypt.encryptDocumentKey(authentication.documentAccess[sharedDocEncrypted._id], pKeys);
+            return encrypt.encryptDocumentKey(newAuthentication.documentAccess[sharedDocEncrypted._id], publicKeys);
           })
           .then(function(encryptedDocKey) {
             // temp store the newEncryptedDocumentKey
@@ -375,7 +387,12 @@
             });
           })
           .then(function() {
-            resolve('success');
+            // check if session management is allowed, if remove key from new session payload
+            if (!sharedDocEncrypted.allowSession) {
+              delete newAuthentication.documentAccess[sharedDocEncrypted._id];
+            }
+            // resolve the new authentication so a new token with the changed payload can be signed
+            resolve(newAuthentication);
           })
           .catch(function(err) {
             reject(err);
