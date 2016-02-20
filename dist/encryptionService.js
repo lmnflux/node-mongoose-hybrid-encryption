@@ -4,7 +4,7 @@
  * @name encryptionService
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.2.2
+ * @version 1.2.3
  *
  * @description
  * all encryption related bottom level functions that handle data encryption
@@ -99,19 +99,16 @@
           .then(function(passphrase) {
             // trim to correct size
             passphrase = trimBuffer(passphrase);
-            console.log(passphrase);
             // parse required options
             var options = {
               numBits: numBits,
-              userIds: [{ name: 'Jon Smith', email: 'jon@example.com'}],
+              userIds: userIdent,
               passphrase: passphrase
             };
-             console.log(password);
             // then generate the key pair
             return openpgp.generateKey(options);
           })
           .then(function(keypair) {
-            console.log('keypair');
             resolve(keypair);
           })
           .catch(function(err) {
