@@ -4,7 +4,7 @@
  * @name encryptionPlugin
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.2.1
+ * @version 1.2.2
  *
  * @description
  * mongoose model extension, adds user specific encryption
@@ -62,7 +62,7 @@
         .filter(function(pathDetails) { // exclude indexed fields
           return !pathDetails._index;
         })
-        .pluck('path') // get path name
+        .map('path') // get path name
         .difference(excludedFields) // exclude excluded fields
         .map(function(path) { // get the top level field
           return path.split('.')[0];

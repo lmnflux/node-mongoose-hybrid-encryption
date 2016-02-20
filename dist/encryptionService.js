@@ -4,7 +4,7 @@
  * @name encryptionService
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.2.1
+ * @version 1.2.2
  *
  * @description
  * all encryption related bottom level functions that handle data encryption
@@ -99,17 +99,19 @@
           .then(function(passphrase) {
             // trim to correct size
             passphrase = trimBuffer(passphrase);
+            console.log(passphrase);
             // parse required options
             var options = {
               numBits: numBits,
-              userId: userIdent,
+              userIds: [{ name: 'Jon Smith', email: 'jon@example.com'}],
               passphrase: passphrase
             };
-
+             console.log(password);
             // then generate the key pair
-            return openpgp.generateKeyPair(options);
+            return openpgp.generateKey(options);
           })
           .then(function(keypair) {
+            console.log('keypair');
             resolve(keypair);
           })
           .catch(function(err) {
@@ -167,10 +169,15 @@
           publicKeysProcessed = openpgp.key.readArmored(publicKeys);
         }
 
+        var options = {
+          data: documentKey,
+          publicKeys: publicKeysProcessed.keys
+        };
+
         // encrypt the documentKey with all provided publicKeys
-        openpgp.encryptMessage(publicKeysProcessed.keys, documentKey)
+        openpgp.encrypt(options)
           .then(function(encryptedDocumentKey) {
-            resolve(encryptedDocumentKey);
+            resolve(encryptedDocumentKey.data);
           })
           .catch(function(err) {
             reject(err);
@@ -196,18 +203,20 @@
           .then(function(passphrase) {
             // trim to correct size
             passphrase = trimBuffer(passphrase);
+
             // then decrypt the private key with the passphrase
             privKey.decrypt(passphrase);
 
-            var encryptedDocKey = encryptedDocumentKey;
-            // process the encrypted document key
-            encryptedDocKey = openpgp.message.readArmored(encryptedDocKey);
+            var options = {
+              message: openpgp.message.readArmored(encryptedDocumentKey),
+              privateKey: privKey
+            };
 
             // then decrypt the encrypted document key with the decrypted private key
-            return openpgp.decryptMessage(privKey, encryptedDocKey);
+            return openpgp.decrypt(options);
           })
           .then(function(decryptedDocumentKey) {
-            resolve(decryptedDocumentKey);
+            resolve(decryptedDocumentKey.data);
           })
           .catch(function(err) {
             reject(err);
