@@ -4,7 +4,7 @@
  * @name encryptionService
  *
  * @author Markus Engel <m.engel188@gmail.com>
- * @version 1.2.3
+ * @version 1.3.0
  *
  * @description
  * all encryption related bottom level functions that handle data encryption
@@ -116,6 +116,53 @@
           });
       });
     };
+
+    /**
+     * @name changePassphrase
+     * @description encrypts the given privateKey with a new passphrase
+     * @param {String} oldPassword
+     * @param {String} newPassword
+     * @param {String} privateKey encrypted
+     * @return {String} the new encrypted and armored privateKey
+     */
+    $.changePassphrase = function(oldPassword, newPassword, privateKey) {
+      return new Promise(function(resolve, reject) {
+        // process the provided private key
+        var privKey = openpgp.key.readArmored(privateKey).keys[0];
+
+        // generate old passphrase
+        deriveKey(oldPassword, 'enc')
+          .then(function(oldPassphrase) {
+            // trim to correct size
+            oldPassphrase = trimBuffer(oldPassphrase);
+
+            // then decrypt the private key with the old passphrase
+            privKey.decrypt(oldPassphrase);
+
+            // generate a new passphrase
+            return deriveKey(newPassword, 'enc');
+          }).then(function(newPassphrase) {
+            // trim to correct size
+            newPassphrase = trimBuffer(newPassphrase);
+
+            // encrypt all privKey packages with the new passphrase
+            var packets = privKey.getAllKeyPackets();
+            for (var i = 0; i < packets.length; i++) {
+              packets[i].encrypt(newPassphrase);
+            }
+
+            // ascii armor the new encrypted privKey
+            var newKeyArmored = privKey.armor();
+
+            // resolve newKeyArmored
+            resolve(newKeyArmored);
+          })
+          .catch(function(err) {
+            reject(err);
+          });
+      });
+    };
+
 
     /**
      * @name generateDocumentKey
@@ -344,38 +391,38 @@
 
         // create the signingKey with documentKey as master
         deriveKey(documentKey, 'sig')
-        .then(function(signingKey){
+          .then(function(signingKey) {
 
-        // use the signingKey to create an HMAC-sha512 hash
-        var hmac = crypto.createHmac('sha512', signingKey);
+            // use the signingKey to create an HMAC-sha512 hash
+            var hmac = crypto.createHmac('sha512', signingKey);
 
-        // convert to regular object if possible in order to convert to the eventual mongo form which may be different than mongoose form
-        // and only pick authenticatedFields that will be authenticated
-        var objectToAuthenticate = _.pick((doc.toObject ? doc.toObject() : doc), authenticatedFields);
-        var stringToAuthenticate = stableStringify(objectToAuthenticate);
+            // convert to regular object if possible in order to convert to the eventual mongo form which may be different than mongoose form
+            // and only pick authenticatedFields that will be authenticated
+            var objectToAuthenticate = _.pick((doc.toObject ? doc.toObject() : doc), authenticatedFields);
+            var stringToAuthenticate = stableStringify(objectToAuthenticate);
 
-        // add the collectionId, the version, the string and fields to authenticate to the HMAC hash
-        hmac.update(collectionId);
-        hmac.update(version);
-        hmac.update(stringToAuthenticate);
-        hmac.update(JSON.stringify(authenticatedFields));
+            // add the collectionId, the version, the string and fields to authenticate to the HMAC hash
+            hmac.update(collectionId);
+            hmac.update(version);
+            hmac.update(stringToAuthenticate);
+            hmac.update(JSON.stringify(authenticatedFields));
 
-        // digest the final hmac to buffer format
-        var fullAuthenticationBuffer = new Buffer(hmac.digest());
-        // trim the full acBuffer to AAC_LENGTH
-        var basicAC = trimBuffer(fullAuthenticationBuffer);
+            // digest the final hmac to buffer format
+            var fullAuthenticationBuffer = new Buffer(hmac.digest());
+            // trim the full acBuffer to AAC_LENGTH
+            var basicAC = trimBuffer(fullAuthenticationBuffer);
 
-        // add version, the basicAC and all authenticated fields to the full authentication cipher
-        var authenticatedFieldsBuf = new Buffer(JSON.stringify(authenticatedFields));
-        var _ac = Buffer.concat([VERSION_BUF, basicAC, authenticatedFieldsBuf]);
+            // add version, the basicAC and all authenticated fields to the full authentication cipher
+            var authenticatedFieldsBuf = new Buffer(JSON.stringify(authenticatedFields));
+            var _ac = Buffer.concat([VERSION_BUF, basicAC, authenticatedFieldsBuf]);
 
-        var authCipher = {
-          _ac: _ac,
-          basicAC: basicAC
-        };
+            var authCipher = {
+              _ac: _ac,
+              basicAC: basicAC
+            };
 
-        resolve(authCipher);
-        });
+            resolve(authCipher);
+          });
       });
     };
 
